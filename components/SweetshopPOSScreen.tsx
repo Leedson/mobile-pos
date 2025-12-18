@@ -1,0 +1,474 @@
+// SweetShopPOSScreen.js
+// FULL React Native POS Screen (Tablet-friendly)
+// Features:
+// - Alphabet-based selection
+// - Search
+// - Weight OR Piece mode
+// - Add / Delete bill items
+// - Live total calculation
+
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  ScrollView
+} from "react-native";
+import { fetchInventory } from "../features/inventory/InventorySlice";
+import { useDispatch, useSelector } from "react-redux";
+import { formatThermalBill } from "../servies/ThermalPrintService";
+import { saveBillPdf } from "../servies/Bill";
+
+// -------------------- SAMPLE DATA --------------------
+const PRODUCTS = [
+  { id: "1", name: "Kaju Katli", rate: 850 },
+  { id: "2", name: "Kalakand", rate: 620 },
+  { id: "3", name: "Khoya Roll", rate: 700 },
+  { id: "4", name: "Mysore Pak", rate: 620 },
+  { id: "5", name: "Rasgulla", rate: 480 },
+  { id: "6", name: "Rasmalai", rate: 520 },
+  { id: "7", name: "Laddu", rate: 520 },
+  { id: "8", name: "Halwa", rate: 450 },
+  { id: "9", name: "Cake", rate: 600 },
+];
+
+const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ-".split("");
+const WEIGHTS = [0.1, 0.25, 0.5, 1]; // kg
+
+// -------------------- COMPONENT --------------------
+export default function SweetShopPOSScreen() {
+  type Product = typeof PRODUCTS[number];
+  type BillItem = {
+    name: string;
+    rate: number;
+    mode: "WEIGHT" | "PIECE";
+    qty: number;
+    amount: string;
+  };
+  const NUM_COLUMNS = 2; // always fixed
+  let timerDebounce = 0;
+
+  const [query, setQuery] = useState("");
+  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const [letter, setLetter] = useState("A");
+  const [selected, setSelected] = useState<any | null>(null);
+
+  const [mode, setMode] = useState<"WEIGHT" | "PIECE">("WEIGHT"); // WEIGHT | PIECE
+  const [weight, setWeight] = useState(0.25);
+  const [pieces, setPieces] = useState(1);
+
+  const [bill, setBill] = useState<BillItem[]>([]);
+
+  // ensure you import useDispatch and useSelector from 'react-redux' at the top
+  const dispatch = useDispatch();
+
+
+  const inventory = useSelector((state: any) => state.inventory.items); 
+
+  // fetch inventory once, and reset qty when mode changes
+  useEffect(() => {
+    dispatch(fetchInventory() as any);
+  }, [dispatch]);
+
+  useEffect(() => {
+    // reset qty when mode changes
+    setWeight(0.25);
+    setPieces(1);
+  }, [mode]);
+
+  useEffect(() => {
+    console.log("Inventory items:", inventory); 
+    setProducts(inventory);
+  }, [inventory]);
+
+  useEffect(() => {
+    if(selected) {
+      if(selected.type.some((t: any) => t === 'Kg')) {
+        setMode("WEIGHT");
+      } else {
+        setMode("PIECE");
+      }
+    }
+  }, [selected]);
+
+  // -------------------- FILTER LOGIC --------------------
+  const filtered = useMemo(() => {
+    if(!letter && !query) return [];
+    return products.filter(
+      (p) =>
+        p.name.toUpperCase().startsWith(letter) &&
+        p.name.toLowerCase().includes(query.toLowerCase())
+    );
+  }, [letter, query]);
+
+  // -------------------- BILL ACTIONS --------------------
+  const addItem = () => {
+    if (!selected) return;
+    const qty = mode === "WEIGHT" ? weight : pieces;
+    const amount = mode === "WEIGHT"
+      ? selected.rate * weight
+      : selected.rate * pieces;
+
+    setBill((b) => [
+      ...b,
+      {
+        name: selected.name,
+        rate: selected.rate,
+        mode,
+        qty,
+        amount: amount.toFixed(2),
+      },
+    ]);
+
+    // reset
+    setSelected(null);
+    setMode("WEIGHT");
+    setWeight(0.25);
+    setPieces(1);
+  };
+
+  const deleteItem = (index: number) => {
+    setBill((b) => b.filter((_, i) => i !== index));
+  };
+
+  const total = bill
+    .reduce((sum, item) => sum + Number(item.amount), 0)
+    .toFixed(2);
+
+  const setLetterWithTime = (ltr: string) => () => {
+    if(ltr === '-') {
+      setLetter('');
+      return;
+    }
+    // append the pressed alphabet (up to 3 chars), then clear after debounce interval
+    const DEBOUNCE_MS = 800;
+    const MAX_LEN = 3;
+
+    // clear any existing timer (store timer on globalThis so it persists across renders)
+    if ((globalThis as any).__alphaTimer) {
+      clearTimeout((globalThis as any).__alphaTimer);
+    }
+    console.log('formed ltters2e..', timerDebounce);
+    setLetter((prev) => {
+      let letter = prev + ltr;
+      if (!(globalThis as any).__timerDebounce) {
+        letter = ltr;
+      }
+      const next = letter.slice(0, MAX_LEN).toUpperCase();
+      console.log('formed ltters..', next, (globalThis as any).__timerDebounce);
+      return next;
+    });
+    (globalThis as any).__timerDebounce = 1;
+    (globalThis as any).__alphaTimer = setTimeout(() => {
+      (globalThis as any).__timerDebounce = 0;
+      (globalThis as any).__alphaTimer = undefined;
+    }, DEBOUNCE_MS);
+  };
+
+  const printAndSaveBill = () => () => {
+    // MOCK function - implement actual print and save logic as needed
+    console.log("Printing bill...", bill);
+    // const formattedBill = formatThermalBill(bill, 1542);
+    // console.log(formattedBill);
+    saveBillPdf(bill);
+    setBill([]); // clear bill after printing
+  }
+
+  // -------------------- UI --------------------
+  return (
+    <View style={styles.container}>
+      {/* TOP BAR */}
+      <View style={styles.topBar}>
+        <Text style={styles.topText}>Bill #1542</Text>
+        <Text style={styles.topText}>Sweet Shop POS</Text>
+      </View>
+
+      <View style={styles.body}>
+        {/* LEFT PANEL */}
+        <View style={styles.left}>
+          <TextInput
+            placeholder="Search sweet"
+            value={query}
+            onChangeText={setQuery}
+            style={styles.search}
+          />
+          <FlatList
+            data={filtered}
+            numColumns={NUM_COLUMNS}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={true}
+            ListHeaderComponent={() => (
+              <FlatList
+                data={ALPHABETS}
+                keyExtractor={(item) => item}
+                contentContainerStyle={styles.alphaRow}
+                horizontal={false}
+                numColumns={4}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={setLetterWithTime(item)}
+                    style={[
+                      styles.alphaBtn,
+                      letter === item && styles.alphaActive,
+                    ]}
+                  >
+                    <Text style={styles.alphaText}>{item}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.itemBtn}
+                onPress={() => setSelected(item)}
+              >
+                <Text style={styles.itemName}>{item.name}</Text>
+                <Text style={styles.itemRate}>₹{item.rate}/kg</Text>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+
+        {/* CENTER PANEL */}
+        <View style={styles.center}>
+          {selected ? (
+            <>
+              <Text style={styles.selTitle}>{selected.name}</Text>
+              <Text style={styles.selRate}>₹{selected.rate}</Text>
+              <View style={styles.modeRow}>
+                <TouchableOpacity
+                  onPress={() => setMode("WEIGHT")}
+                  style={[styles.modeBtn, mode === "WEIGHT" && styles.modeActive]}
+                >
+                  <Text>WEIGHT</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setMode("PIECE")}
+                  style={[styles.modeBtn, mode === "PIECE" && styles.modeActive]}
+                >
+                  <Text>PIECE</Text>
+                </TouchableOpacity>
+              </View>
+              {
+                mode === "WEIGHT" ? <Text style={styles.qtyText}>{weight} kg</Text> : <Text style={styles.qtyText}>{pieces} pcs</Text>
+              }
+              <ScrollView>
+              {mode === "WEIGHT" ? (
+                <>
+                 
+                  <View style={styles.qtyRow}>
+                    {WEIGHTS.map((w) => (
+                      <TouchableOpacity
+                        key={w}
+                        onPress={() => setWeight(w)}
+                        style={styles.qtyBtn}
+                      >
+                        <Text>{w * 1000}g</Text>
+                        <View style={{ marginTop: 8, flexDirection: "row", alignItems: "center" }}>
+                          <TouchableOpacity
+                            onPress={() =>
+                              setWeight((prev) => Math.max(w, parseFloat((prev - w).toFixed(3))))
+                            }
+                            style={{ padding: 6, backgroundColor: "#fff", borderRadius: 6, marginRight: 6 }}
+                          >
+                            <Text>-</Text>
+                          </TouchableOpacity>
+
+                          <Text style={{ minWidth: 36, textAlign: "center" }}>
+                            {Math.max(0, Math.round(weight / w))}x
+                          </Text>
+
+                          <TouchableOpacity
+                            onPress={() =>
+                              setWeight((prev) => parseFloat((prev + w).toFixed(3)))
+                            }
+                            style={{ padding: 6, backgroundColor: "#fff", borderRadius: 6, marginLeft: 6 }}
+                          >
+                            <Text>+</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <>
+                  {/* <Text style={styles.qtyText}>{pieces} pcs</Text> */}
+                  <View style={styles.qtyRow}>
+                    <TouchableOpacity
+                      style={styles.qtyBtn}
+                      onPress={() => setPieces(Math.max(1, pieces - 1))}
+                    >
+                      <Text>-</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.qtyBtn}
+                      onPress={() => setPieces(pieces + 1)}
+                    >
+                      <Text>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+
+              <TouchableOpacity style={styles.addBtn} onPress={addItem}>
+                <Text style={styles.addText}>ADD TO BILL</Text>
+              </TouchableOpacity>
+              </ScrollView>
+            </>
+          ) : (
+            <Text style={styles.placeholder}>Select a sweet</Text>
+          )}
+        </View>
+
+        {/* RIGHT PANEL */}
+        <View style={styles.right}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <Text style={styles.billTitle}>Bill Items</Text>
+            <TouchableOpacity onPress={() => setBill([])} style={{ padding: 2, width: 30, justifyContent: "center", alignItems: "center", display: "flex", backgroundColor: "#FCA5A5", borderRadius: 6 }}>
+              <Text style={{ fontWeight: "700", color: "#7F1D1D" }}>X</Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={bill}
+            keyExtractor={(_, i) => i.toString()}
+            style={{ paddingRight: 10 }}
+            renderItem={({ item, index }: { item: any, index: number }) => (
+              <View style={styles.billRow}>
+                <Text style={styles.billItem}>{item.name}</Text>
+                <Text>{item.mode === "WEIGHT" ? `${item.qty}kg` : `${item.qty} pcs`}</Text>
+                <Text>₹{item.amount}</Text>
+                <TouchableOpacity onPress={() => deleteItem(index)}>
+                  <Text style={styles.delete}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+          <Text style={styles.total}>TOTAL ₹{total}</Text>
+        </View>
+      </View>
+
+      {/* BOTTOM BAR */}
+      <View style={styles.bottom}>
+        <TouchableOpacity style={styles.payBtn}><Text>CASH</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.payBtn}><Text>UPI</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.payBtn}><Text>CARD</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.payBtn, styles.printBtn]} onPress={printAndSaveBill()}>
+          <Text>PRINT</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// -------------------- STYLES --------------------
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#FFF7ED" },
+
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 12,
+    backgroundColor: "#7C2D12",
+  },
+  topText: { color: "#fff", fontWeight: "700" },
+
+  body: { flex: 1, flexDirection: "row" },
+
+  left: { flex: 2, padding: 8 },
+  center: { flex: 4, padding: 8, alignItems: "center", justifyContent: "center" },
+  right: { flex: 4, padding: 5, backgroundColor: "#FFF" },
+
+  search: {
+    backgroundColor: "#fff",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+
+  alphaRow: { flexDirection: "row", marginBottom: 6 },
+  alphaBtn: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    margin: 2,
+    borderRadius: 4,
+    backgroundColor: "#E7E5E4",
+  },
+  alphaActive: { backgroundColor: "#FB923C" },
+  alphaText: { fontSize: 12, fontWeight: "700" },
+
+  itemBtn: {
+    flex: 1,
+    backgroundColor: "#FED7AA",
+    margin: 4,
+    padding: 12,
+    borderRadius: 10,
+  },
+  itemName: { fontWeight: "700" },
+  itemRate: { fontSize: 12 },
+
+  selTitle: { fontSize: 22, fontWeight: "800" },
+  selRate: { marginBottom: 10 },
+
+  modeRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
+  modeBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 8,
+  },
+  modeActive: { backgroundColor: "#86EFAC" },
+
+  qtyText: { fontSize: 24, textAlign: "center" },
+  qtyRow: { flexDirection: "row", gap: 10, flexWrap: "wrap", justifyContent: "center" },
+  qtyBtn: {
+    padding: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 8,
+    minWidth: 30,
+    alignItems: "center",
+  },
+
+  addBtn: {
+    marginTop: 20,
+    backgroundColor: "#16A34A",
+    padding: 14,
+    borderRadius: 10,
+  },
+  addText: { color: "#fff", fontWeight: "800" },
+
+  placeholder: { color: "#78716C" },
+
+  billTitle: { fontWeight: "800", marginBottom: 6 },
+  billRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+    gap: 10,
+  },
+  billItem: { flex: 1 },
+  delete: { color: "red", fontWeight: "800" },
+
+  total: { fontSize: 18, fontWeight: "800", marginTop: 10 },
+
+  bottom: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    padding: 10,
+    backgroundColor: "#E7E5E4",
+  },
+  payBtn: {
+    padding: 14,
+    backgroundColor: "#FDE68A",
+    borderRadius: 10,
+    minWidth: 70,
+    alignItems: "center",
+  },
+  printBtn: { backgroundColor: "#86EFAC" },
+});
