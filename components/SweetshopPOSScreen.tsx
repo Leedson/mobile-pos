@@ -467,7 +467,7 @@ export default function SweetShopPOSScreen() {
       {/* BOTTOM BAR */}
       <View style={styles.bottom}>
         { bill.length > 0 && <TouchableOpacity style={styles.payBtn} onPress={setPendingBilling}><Text>Set to Pending Bills</Text></TouchableOpacity> }
-        <TouchableOpacity style={styles.payBtn} onPress={generateTodaysReport}><Text>Report(today's)</Text></TouchableOpacity>
+        {/* <TouchableOpacity style={styles.payBtn} onPress={generateTodaysReport}><Text>Report(today's)</Text></TouchableOpacity> */}
         <TouchableOpacity style={[styles.payBtn, styles.printBtn]} onPress={printAndSaveBill()}>
           <Text>PRINT</Text>
         </TouchableOpacity>
