@@ -503,8 +503,8 @@ const styles = StyleSheet.create({
 
   alphaRow: { flexDirection: "row", marginBottom: 6 },
   alphaBtn: {
-    width: 50,
-    height: 50,
+    width: 65,
+    height: 65,
     alignItems: "center",
     justifyContent: "center",
     margin: 2,
