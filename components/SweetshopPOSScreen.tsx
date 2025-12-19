@@ -15,12 +15,17 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  ScrollView
+  ScrollView,
+  Alert
 } from "react-native";
 import { fetchInventory } from "../features/inventory/InventorySlice";
 import { useDispatch, useSelector } from "react-redux";
 import { formatThermalBill } from "../servies/ThermalPrintService";
 import { saveBillPdf } from "../servies/Bill";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { initDatabase } from "../src/database/initDatabase";
+import { createBill, fetchTodaysReport, insertBillItems } from "../src/database/billingRepo";
+import { generateReportHTML, saveReportPdf } from "../servies/Reports";
 
 // -------------------- SAMPLE DATA --------------------
 const PRODUCTS = [
@@ -49,7 +54,7 @@ export default function SweetShopPOSScreen() {
     amount: string;
   };
   const NUM_COLUMNS = 2; // always fixed
-  let timerDebounce = 0;
+  
 
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
@@ -59,6 +64,7 @@ export default function SweetShopPOSScreen() {
   const [mode, setMode] = useState<"WEIGHT" | "PIECE">("WEIGHT"); // WEIGHT | PIECE
   const [weight, setWeight] = useState(0.25);
   const [pieces, setPieces] = useState(1);
+  const [loader, setLoader] = useState(false);
 
   const [bill, setBill] = useState<BillItem[]>([]);
 
@@ -80,7 +86,6 @@ export default function SweetShopPOSScreen() {
   }, [mode]);
 
   useEffect(() => {
-    console.log("Inventory items:", inventory); 
     setProducts(inventory);
   }, [inventory]);
 
@@ -94,6 +99,10 @@ export default function SweetShopPOSScreen() {
     }
   }, [selected]);
 
+
+  useEffect(() => {
+    initDatabase();  
+  }, []);
   // -------------------- FILTER LOGIC --------------------
   const filtered = useMemo(() => {
     if(!letter && !query) return [];
@@ -141,6 +150,7 @@ export default function SweetShopPOSScreen() {
   const setLetterWithTime = (ltr: string) => () => {
     if(ltr === '-') {
       setLetter('');
+      setSelected(null);
       return;
     }
     // append the pressed alphabet (up to 3 chars), then clear after debounce interval
@@ -151,14 +161,14 @@ export default function SweetShopPOSScreen() {
     if ((globalThis as any).__alphaTimer) {
       clearTimeout((globalThis as any).__alphaTimer);
     }
-    console.log('formed ltters2e..', timerDebounce);
+    // console.log('formed ltters2e..', timerDebounce);
     setLetter((prev) => {
       let letter = prev + ltr;
       if (!(globalThis as any).__timerDebounce) {
         letter = ltr;
       }
       const next = letter.slice(0, MAX_LEN).toUpperCase();
-      console.log('formed ltters..', next, (globalThis as any).__timerDebounce);
+      // console.log('formed ltters..', next, (globalThis as any).__timerDebounce);
       return next;
     });
     (globalThis as any).__timerDebounce = 1;
@@ -170,31 +180,60 @@ export default function SweetShopPOSScreen() {
 
   const printAndSaveBill = () => () => {
     // MOCK function - implement actual print and save logic as needed
-    console.log("Printing bill...", bill);
+    // console.log("Printing bill...", bill);
     // const formattedBill = formatThermalBill(bill, 1542);
     // console.log(formattedBill);
     saveBillPdf(bill);
     setBill([]); // clear bill after printing
+    setLoader(true);
+    createBill(total).then((billId) => {
+      insertBillItems(billId, bill).then(() => {
+        Alert.alert("Success", "Bill has been printed and saved.");
+        setLoader(false);
+      }).catch(() => {
+        Alert.alert("Error", "Failed to save bill items.");
+        setLoader(false);
+      });
+    }).catch(() => {
+      Alert.alert("Error", "Failed to save bill.");
+      setLoader(false);
+    });
+    
+  }
+
+  const generateTodaysReport = () => {
+    fetchTodaysReport().then((res) => {
+      console.log("Today's Report:", res);
+      Alert.alert("Report", `Fetched ${res.rows?.length} bills for today.`);
+      saveReportPdf(res.rows?._array || []);
+    }).catch(() => {
+      Alert.alert("Error", "Failed to fetch today's report.");
+    });
   }
 
   // -------------------- UI --------------------
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      {loader && (
+        <View style={{ height: 8, backgroundColor: "#F3F4F6", margin: 8, borderRadius: 4, overflow: "hidden" }}>
+          <View style={{ width: "60%", height: "100%", backgroundColor: "#F97316" }} />
+        </View>
+      )}
       {/* TOP BAR */}
       <View style={styles.topBar}>
-        <Text style={styles.topText}>Bill #1542</Text>
+        <Text style={styles.topText}>Bill {Date.now()}</Text>
         <Text style={styles.topText}>Sweet Shop POS</Text>
       </View>
 
       <View style={styles.body}>
         {/* LEFT PANEL */}
         <View style={styles.left}>
-          <TextInput
+          {/* <TextInput
             placeholder="Search sweet"
             value={query}
             onChangeText={setQuery}
             style={styles.search}
-          />
+          /> */}
           <FlatList
             data={filtered}
             numColumns={NUM_COLUMNS}
@@ -355,12 +394,12 @@ export default function SweetShopPOSScreen() {
       <View style={styles.bottom}>
         <TouchableOpacity style={styles.payBtn}><Text>CASH</Text></TouchableOpacity>
         <TouchableOpacity style={styles.payBtn}><Text>UPI</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.payBtn}><Text>CARD</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.payBtn} onPress={generateTodaysReport}><Text>Report(today's)</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.payBtn, styles.printBtn]} onPress={printAndSaveBill()}>
           <Text>PRINT</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -378,8 +417,8 @@ const styles = StyleSheet.create({
 
   body: { flex: 1, flexDirection: "row" },
 
-  left: { flex: 2, padding: 8 },
-  center: { flex: 4, padding: 8, alignItems: "center", justifyContent: "center" },
+  left: { flex: 3, padding: 8 },
+  center: { flex: 3, padding: 8, alignItems: "center", justifyContent: "center" },
   right: { flex: 4, padding: 5, backgroundColor: "#FFF" },
 
   search: {
@@ -391,8 +430,8 @@ const styles = StyleSheet.create({
 
   alphaRow: { flexDirection: "row", marginBottom: 6 },
   alphaBtn: {
-    width: 28,
-    height: 28,
+    width: 50,
+    height: 50,
     alignItems: "center",
     justifyContent: "center",
     margin: 2,
@@ -462,6 +501,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     padding: 10,
     backgroundColor: "#E7E5E4",
+    // marginBottom: 30
   },
   payBtn: {
     padding: 14,
