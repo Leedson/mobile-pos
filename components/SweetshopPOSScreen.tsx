@@ -27,6 +27,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // import { createBill, fetchTodaysReport, insertBillItems } from "../src/database/billingRepo";
 import { generateReportHTML, saveReportPdf } from "../servies/Reports";
 import { fetchLastRow, BillingDetails, addRowToSheet, retryAsync } from "../features/inventory/InventoryAPI";
+import { Dimensions } from "react-native";
 
 // -------------------- SAMPLE DATA --------------------
 const PRODUCTS = [
@@ -243,6 +244,12 @@ export default function SweetShopPOSScreen() {
     // });
   }
 
+  const handleRowPress = (item: BillItem, index: number) => {
+    setSelected(item);
+    setBill(bill => bill.filter((_, i) => i !== index));
+  }
+
+
   // -------------------- UI --------------------
   return (
     <SafeAreaView style={styles.container}>
@@ -447,14 +454,14 @@ export default function SweetShopPOSScreen() {
             keyExtractor={(_, i) => i.toString()}
             style={{ paddingRight: 10 }}
             renderItem={({ item, index }: { item: any, index: number }) => (
-              <View style={styles.billRow}>
+              <TouchableOpacity onPress={() => handleRowPress(item, index)} style={styles.billRow}>
                 <Text style={styles.billItem}>{item.name}</Text>
                 <Text>{item.mode === "WEIGHT" ? `${item.qty}kg` : `${item.qty} pcs`}</Text>
                 <Text>₹{item.amount}</Text>
                 <TouchableOpacity onPress={() => deleteItem(index)}>
                   <Text style={styles.delete}>✕</Text>
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             )}
           />
           <Text style={styles.total}>TOTAL ₹{total}</Text>
@@ -477,6 +484,10 @@ export default function SweetShopPOSScreen() {
 }
 
 // -------------------- STYLES --------------------
+const { width, height } = Dimensions.get("window");
+const isTablet = Math.min(width, height) >= 600; // breakpoint: 600dp
+const ALPHA_SIZE = isTablet ? 90 : 50;
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFF7ED" },
 
@@ -503,8 +514,8 @@ const styles = StyleSheet.create({
 
   alphaRow: { flexDirection: "row", marginBottom: 6 },
   alphaBtn: {
-    width: 50,
-    height: 50,
+    width: ALPHA_SIZE,
+    height: ALPHA_SIZE,
     alignItems: "center",
     justifyContent: "center",
     margin: 2,
@@ -562,7 +573,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 6,
-    gap: 10,
+    gap: 10
   },
   billItem: { flex: 1 },
   delete: { color: "red", fontWeight: "800" },
