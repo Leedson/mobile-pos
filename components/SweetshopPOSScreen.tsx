@@ -23,9 +23,10 @@ import { useDispatch, useSelector } from "react-redux";
 import { formatThermalBill } from "../servies/ThermalPrintService";
 import { saveBillPdf } from "../servies/Bill";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { initDatabase } from "../src/database/initDatabase";
-import { createBill, fetchTodaysReport, insertBillItems } from "../src/database/billingRepo";
+// import { initDatabase } from "../src/database/initDatabase";
+// import { createBill, fetchTodaysReport, insertBillItems } from "../src/database/billingRepo";
 import { generateReportHTML, saveReportPdf } from "../servies/Reports";
+import { fetchLastRow, BillingDetails, addRowToSheet, retryAsync } from "../features/inventory/InventoryAPI";
 
 // -------------------- SAMPLE DATA --------------------
 const PRODUCTS = [
@@ -67,6 +68,7 @@ export default function SweetShopPOSScreen() {
   const [loader, setLoader] = useState(false);
   const [pendingBills, setPendingBills] = useState<any[]>([]);
   const [pendingQueue, setPendingQueue] = useState<boolean>(false);
+  const [paymentMode, setPaymentMode] = useState<"CASH" | "CARD" | "UPI">("CASH");
 
   const [bill, setBill] = useState<BillItem[]>([]);
 
@@ -102,9 +104,13 @@ export default function SweetShopPOSScreen() {
   }, [selected]);
 
 
-  useEffect(() => {
-    initDatabase();  
-  }, []);
+  // useEffect(() => {
+  //   // initDatabase();  
+  //   fetchLastRow().then((row) => {
+  //     console.log("Last edited row:", row.lastRow[0]);
+  //     setLastEditedRowId(row.lastRow[0]);
+  //   }); 
+  // }, []);
 
   // -------------------- FILTER LOGIC --------------------
   const filtered = useMemo(() => {
@@ -192,32 +198,49 @@ export default function SweetShopPOSScreen() {
     // console.log("Printing bill...", bill);
     // const formattedBill = formatThermalBill(bill, 1542);
     // console.log(formattedBill);
+    setLoader(true);
     saveBillPdf(bill);
     setBill([]); // clear bill after printing
-    setLoader(true);
-    createBill(total).then((billId) => {
-      insertBillItems(billId, bill).then(() => {
-        Alert.alert("Success", "Bill has been printed and saved.");
-        setLoader(false);
-      }).catch(() => {
-        Alert.alert("Error", "Failed to save bill items.");
-        setLoader(false);
-      });
-    }).catch(() => {
-      Alert.alert("Error", "Failed to save bill.");
+    setTimeout(() =>  {
+       Alert.alert("Success", "Bill has been generated.");
       setLoader(false);
+    }, 500);
+
+    retryAsync(() => addRowToSheet(bill as unknown as BillingDetails[], paymentMode), 3, 1500).then(() => {
+      // setLastEditedRowId(prev => prev + 1);
+    }).catch(() => {
+      // Alert.alert("Error", "Failed to make the network.");
     });
+    
+
+    // addRowToSheet(bill as unknown as BillingDetails[], lastEditedRowId, paymentMode).then(() => {
+    //   setLastEditedRowId(prev => prev + 1);
+    // }).catch(() => {
+    //   // Alert.alert("Error", "Failed to make the network.");
+    // });
+    // createBill(total).then((billId) => {
+    //   insertBillItems(billId, bill).then(() => {
+    //     Alert.alert("Success", "Bill has been printed and saved.");
+    //     setLoader(false);
+    //   }).catch(() => {
+    //     Alert.alert("Error", "Failed to save bill items.");
+    //     setLoader(false);
+    //   });
+    // }).catch(() => {
+    //   Alert.alert("Error", "Failed to save bill.");
+    //   setLoader(false);
+    // });
     
   }
 
   const generateTodaysReport = () => {
-    fetchTodaysReport().then((res) => {
-      console.log("Today's Report:", res);
-      Alert.alert("Report", `Fetched ${res.rows?.length} bills for today.`);
-      saveReportPdf(res.rows?._array || []);
-    }).catch(() => {
-      Alert.alert("Error", "Failed to fetch today's report.");
-    });
+    // fetchTodaysReport().then((res) => {
+    //   console.log("Today's Report:", res);
+    //   Alert.alert("Report", `Fetched ${res.rows?.length} bills for today.`);
+    //   saveReportPdf(res.rows?._array || []);
+    // }).catch(() => {
+    //   Alert.alert("Error", "Failed to fetch today's report.");
+    // });
   }
 
   // -------------------- UI --------------------
@@ -435,8 +458,9 @@ export default function SweetShopPOSScreen() {
             )}
           />
           <Text style={styles.total}>TOTAL ₹{total}</Text>
-          <TouchableOpacity style={styles.payBtn}><Text>CASH</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.payBtn}><Text>UPI</Text></TouchableOpacity>
+          <Text style={styles.total}>Selected Payment mode: {paymentMode}</Text>
+          <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentMode("CASH")}><Text>CASH</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentMode("UPI")}><Text>UPI</Text></TouchableOpacity>
         </View>
       </View>
 

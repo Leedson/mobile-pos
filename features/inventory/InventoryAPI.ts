@@ -28,3 +28,57 @@ export const fetchInventoryApi = () => {
             return tempList;
         });
 };
+
+export interface BillingDetails {
+    id: string;
+    name: string;
+    rate: number;
+    mode: "WEIGHT" | "PIECE";
+    qty: number;
+    amount: string;
+    paymode: "CASH" | "CARD" | "UPI";
+    date?: string;
+}
+
+//deploymentid AKfycbwBl8DnNiLFQjzyaIRgGInLS_ajmGaokIdOQXreXOI-fsUhRsdUfIQNWyMDmkVgZa6l
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwBl8DnNiLFQjzyaIRgGInLS_ajmGaokIdOQXreXOI-fsUhRsdUfIQNWyMDmkVgZa6l/exec';
+
+export const addRowToSheet = async (item: BillingDetails[], paymentMode: string) => {
+    const payload =  JSON.stringify({ rows: item.map(i => ({
+      name: i.name,
+      rate: i.rate,
+      qty: i.qty,
+      mode: i.mode,
+      amount: i.amount,
+      paymentMode: paymentMode,
+    }))});
+    console.log('constructured payment payload:', payload);
+    const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+    });
+
+  return res.json();
+};
+
+export const fetchLastRow = async () => {
+  const res = await fetch(SCRIPT_URL);
+  return res.json();
+};
+
+export const retryAsync = async (
+  fn: () => Promise<any>,
+  retries = 3,
+  delay = 1500
+): Promise<any> => {
+  try {
+    return await fn();
+  } catch (err) {
+    if (retries <= 0) {
+      throw err;
+    }
+    await new Promise((res: any) => setTimeout(res, delay));
+    return retryAsync(fn, retries - 1, delay);
+  }
+};

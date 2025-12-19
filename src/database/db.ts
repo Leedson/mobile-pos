@@ -1,8 +1,8 @@
-import { open } from 'react-native-quick-sqlite';
+// import { open } from 'react-native-quick-sqlite';
 
-// SQLite.enablePromise(true);
+// // SQLite.enablePromise(true);
 
-export const db = open({
-  name: 'sweetpos.db',
-  location: 'default'
-});
+// export const db = open({
+//   name: 'sweetpos.db',
+//   location: 'default'
+// });
