@@ -65,6 +65,8 @@ export default function SweetShopPOSScreen() {
   const [weight, setWeight] = useState(0.25);
   const [pieces, setPieces] = useState(1);
   const [loader, setLoader] = useState(false);
+  const [pendingBills, setPendingBills] = useState<any[]>([]);
+  const [pendingQueue, setPendingQueue] = useState<boolean>(false);
 
   const [bill, setBill] = useState<BillItem[]>([]);
 
@@ -103,6 +105,7 @@ export default function SweetShopPOSScreen() {
   useEffect(() => {
     initDatabase();  
   }, []);
+
   // -------------------- FILTER LOGIC --------------------
   const filtered = useMemo(() => {
     if(!letter && !query) return [];
@@ -178,6 +181,12 @@ export default function SweetShopPOSScreen() {
     }, DEBOUNCE_MS);
   };
 
+  const setPendingBilling = () => { 
+    setPendingBills(pendingBills => [...pendingBills, bill]);
+    setBill([]);  
+    Alert.alert("Success", "Bill has been moved to pending bills.");
+  }
+
   const printAndSaveBill = () => () => {
     // MOCK function - implement actual print and save logic as needed
     // console.log("Printing bill...", bill);
@@ -227,13 +236,19 @@ export default function SweetShopPOSScreen() {
 
       <View style={styles.body}>
         {/* LEFT PANEL */}
-        <View style={styles.left}>
+        {!pendingQueue ? <View style={styles.left}>
           {/* <TextInput
             placeholder="Search sweet"
             value={query}
             onChangeText={setQuery}
             style={styles.search}
           /> */}
+          <TouchableOpacity
+            style={styles.itemBtn}
+            onPress={() => setPendingQueue(!pendingQueue)}
+          >
+            <Text style={styles.addText}>Show Pending bills</Text>
+          </TouchableOpacity>
           <FlatList
             data={filtered}
             numColumns={NUM_COLUMNS}
@@ -269,11 +284,18 @@ export default function SweetShopPOSScreen() {
               </TouchableOpacity>
             )}
           />
+        </View> : <View style={styles.left}>
+          <TouchableOpacity
+            style={styles.itemBtn}
+            onPress={() => setPendingQueue(!pendingQueue)}  >
+            <Text style={styles.addText}>Back to Billing</Text>
+            </TouchableOpacity>
         </View>
+      }
 
         {/* CENTER PANEL */}
         <View style={styles.center}>
-          {selected ? (
+          {selected && !pendingQueue ? (
             <>
               <Text style={styles.selTitle}>{selected.name}</Text>
               <Text style={styles.selRate}>₹{selected.rate}</Text>
@@ -361,6 +383,32 @@ export default function SweetShopPOSScreen() {
           ) : (
             <Text style={styles.placeholder}>Select a sweet</Text>
           )}
+          {
+            pendingQueue && pendingBills.length === 0 && <Text style={styles.placeholder}>No pending bills</Text>
+          }
+          {
+            pendingQueue && pendingBills.length > 0 && <FlatList
+              data={pendingBills}
+              keyExtractor={(_, i) => i.toString()}
+              renderItem={({ item, index }: { item: any, index: number }) => (
+                <TouchableOpacity
+                  style={styles.itemBtn}  
+                  onPress={() => {
+                    setBill(item);
+                    setPendingBills(pendingBills.filter((_, i) => i !== index));
+                    setPendingQueue(false);
+                  }}
+                >
+                  <Text style={styles.itemName}>Pending Bill #{index + 1}</Text>
+                  {
+                    item.map((it: any) => (
+                      <Text key={it.name} style={styles.itemRate}>{it.name} - ₹{it.amount} - {item.qty}</Text>
+                    ))
+                  }
+                </TouchableOpacity>
+              )}
+            />
+          }
         </View>
 
         {/* RIGHT PANEL */}
@@ -387,13 +435,14 @@ export default function SweetShopPOSScreen() {
             )}
           />
           <Text style={styles.total}>TOTAL ₹{total}</Text>
+          <TouchableOpacity style={styles.payBtn}><Text>CASH</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.payBtn}><Text>UPI</Text></TouchableOpacity>
         </View>
       </View>
 
       {/* BOTTOM BAR */}
       <View style={styles.bottom}>
-        <TouchableOpacity style={styles.payBtn}><Text>CASH</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.payBtn}><Text>UPI</Text></TouchableOpacity>
+        { bill.length > 0 && <TouchableOpacity style={styles.payBtn} onPress={setPendingBilling}><Text>Set to Pending Bills</Text></TouchableOpacity> }
         <TouchableOpacity style={styles.payBtn} onPress={generateTodaysReport}><Text>Report(today's)</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.payBtn, styles.printBtn]} onPress={printAndSaveBill()}>
           <Text>PRINT</Text>
