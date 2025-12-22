@@ -51,7 +51,7 @@ export const addRowToSheet = async (item: BillingDetails[], paymentMode: string)
       mode: i.mode,
       amount: i.amount,
       paymentMode: paymentMode,
-    })), sheetName: 'Thaya'});
+    })), sheetName: 'Demo'});
     //sheetName: 'Demo' is for testing purpose only. Change it to 'Thaya' when needed.
     console.log('constructured payment payload:', payload);
     const res = await fetch(SCRIPT_URL, {

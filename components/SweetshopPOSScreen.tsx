@@ -55,6 +55,7 @@ export default function SweetShopPOSScreen() {
     mode: "WEIGHT" | "PIECE";
     qty: number;
     amount: string;
+    type?: string[];
   };
   const NUM_COLUMNS = 2; // always fixed
   
@@ -98,6 +99,12 @@ export default function SweetShopPOSScreen() {
 
   useEffect(() => {
     if(selected) {
+      if(selected.mode === "PIECE") {
+        setPieces(selected.qty);
+      } else if(selected.mode === "WEIGHT") {
+        setWeight(selected.qty);
+      }
+      
       if(selected.type.some((t: any) => t === 'Kg')) {
         setMode("WEIGHT");
       } else {
@@ -247,6 +254,11 @@ export default function SweetShopPOSScreen() {
   }
 
   const handleRowPress = (item: BillItem, index: number) => {
+    if(item.mode === "WEIGHT") {
+      item.type = ['Kg'];
+    } else {
+      item.type = ['Pc'];
+    }
     setSelected(item);
     setBill(bill => bill.filter((_, i) => i !== index));
   }
@@ -536,14 +548,21 @@ export default function SweetShopPOSScreen() {
             </TouchableOpacity>
           </View>
           <FlatList
+            nestedScrollEnabled={true}
+            scrollEnabled={true}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={{ paddingBottom: 20 }}
+            initialNumToRender={10}
+            windowSize={21}
             data={bill}
             keyExtractor={(_, i) => i.toString()}
             style={{ paddingRight: 10 }}
             renderItem={({ item, index }: { item: any, index: number }) => (
               <TouchableOpacity onPress={() => handleRowPress(item, index)} style={styles.billRow}>
                 <Text style={styles.billItem}>{item.name}</Text>
-                <Text>{item.mode === "WEIGHT" ? `${item.qty}kg` : `${item.qty} pcs`}</Text>
-                <Text>₹{item.amount}</Text>
+                <Text style={{fontSize: 18}}>{item.mode === "WEIGHT" ? `${item.qty}kg` : `${item.qty} pcs`}</Text>
+                <Text style={{fontSize: 18}}>₹{item.amount}</Text>
                 <TouchableOpacity onPress={() => deleteItem(index)}>
                   <Text style={styles.delete}>✕</Text>
                 </TouchableOpacity>
@@ -659,10 +678,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 6,
-    gap: 10
+    gap: 10,
   },
   billItem: { flex: 1 },
-  delete: { color: "red", fontWeight: "800" },
+  delete: { color: "red", fontWeight: "800", fontSize: 18 },
 
   total: { fontSize: 18, fontWeight: "800", marginTop: 10 },
 
