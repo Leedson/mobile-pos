@@ -69,7 +69,19 @@ export const generateBillHTML = (items: any) => {
       <p class="center">TH/NS/${Date.now()}</p>
       <table>
         <tr>
-          <th>SN</th>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Cashier</th>
+        </tr>
+        <tr>
+          <td>${new Date().toLocaleDateString()}</td>
+          <td>${new Date().toLocaleTimeString()}</td>
+          <td>Admin</td>
+        </tr>
+      </table>
+      <table>
+        <tr>
+          <th>#</th>
           <th>Item</th>
           <th>Qty</th>
           <th>Rate</th>
@@ -79,7 +91,7 @@ export const generateBillHTML = (items: any) => {
       </table>
 
       <h4 class="right">TOTAL: ₹ ${subtotal.toFixed(2)}</h4>
-
+    
       <p class="center">Thank You</p>
     </body>
     </html>

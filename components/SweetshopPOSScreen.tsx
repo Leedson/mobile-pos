@@ -28,6 +28,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { generateReportHTML, saveReportPdf } from "../servies/Reports";
 import { fetchLastRow, BillingDetails, addRowToSheet, retryAsync } from "../features/inventory/InventoryAPI";
 import { Dimensions } from "react-native";
+import ManualRateInputModal from "./ManualRateInputModal";
 
 // -------------------- SAMPLE DATA --------------------
 const PRODUCTS = [
@@ -70,6 +71,7 @@ export default function SweetShopPOSScreen() {
   const [pendingBills, setPendingBills] = useState<any[]>([]);
   const [pendingQueue, setPendingQueue] = useState<boolean>(false);
   const [paymentMode, setPaymentMode] = useState<"CASH" | "CARD" | "UPI">("CASH");
+  const [rateModalInputVisible, setRateModalInputVisible] = useState<boolean>(false);
 
   const [bill, setBill] = useState<BillItem[]>([]);
 
@@ -322,6 +324,28 @@ export default function SweetShopPOSScreen() {
             </TouchableOpacity>
         </View>
       }
+      <ManualRateInputModal visible={rateModalInputVisible} setVisible={setRateModalInputVisible} callback={(amount: string) => {
+        const enteredAmount = parseFloat(amount);
+        if (!selected || isNaN(enteredAmount)) {
+          setRateModalInputVisible(false);
+          return;
+        }
+        const unitRate = Number(selected.rate) || 0;
+        if (unitRate <= 0) {
+          setRateModalInputVisible(false);
+          return;
+        }
+        if (mode === "WEIGHT") {
+          // enteredAmount is total amount -> weight = total / rate (kg)
+          const newWeight = parseFloat((enteredAmount / unitRate).toFixed(3));
+          setWeight(Math.max(0, newWeight));
+        } else {
+          // PIECE mode -> pieces = total / rate (pcs)
+          const newPieces = parseFloat((enteredAmount / unitRate).toFixed(3));
+          setPieces(Math.max(0, newPieces));
+        }
+        setRateModalInputVisible(false);
+      }}/>
 
         {/* CENTER PANEL */}
         <View style={styles.center}>
@@ -329,6 +353,13 @@ export default function SweetShopPOSScreen() {
             <>
               <Text style={styles.selTitle}>{selected.name}</Text>
               <Text style={styles.selRate}>₹{selected.rate}</Text>
+              <Text style={{ marginBottom: 10 }}>Calculated Rate: ₹{selected.rate * (mode === "WEIGHT" ? weight : pieces)}</Text>
+               <TouchableOpacity
+                  onPress={() => setRateModalInputVisible(true)}
+                  style={[styles.qtyBtn, { minWidth: 72, marginBottom: 6, paddingVertical: 14 }]}
+                >
+                  <Text>MR</Text>
+                </TouchableOpacity>
               <View style={styles.modeRow}>
                 <TouchableOpacity
                   onPress={() => setMode("WEIGHT")}
@@ -404,6 +435,61 @@ export default function SweetShopPOSScreen() {
                   </View>
                 </>
               )}
+
+              {
+                mode !== "WEIGHT" && 
+              (() => {
+                if (!(globalThis as any).__pieceInput || parseFloat((globalThis as any).__pieceInput) !== pieces) {
+                  (globalThis as any).__pieceInput = String(pieces);
+                }
+
+                const handleKey = (k: string) => {
+                  let cur: string = (globalThis as any).__pieceInput || "0";
+                  if (k === "⌫") {
+                    cur = cur.slice(0, -1);
+                    if (cur === "" || cur === "-" || cur === ".") cur = "0";
+                  } else if (k === ".") {
+                    if (!cur.includes(".")) cur = cur + ".";
+                  } else {
+                    // digit
+                    if (cur === "0") cur = k;
+                    else cur = cur + k;
+                  }
+                  (globalThis as any).__pieceInput = cur;
+                  const parsed = parseFloat(cur);
+                  setPieces(isNaN(parsed) ? 0 : parsed);
+                };
+
+                const rows = [
+                  ["1", "2", "3"],
+                  ["4", "5", "6"],
+                  ["7", "8", "9"],
+                  [".", "0", "⌫"],
+                ];
+
+                return (
+                  <View style={{ width: "100%", alignItems: "center", marginTop: 12 }}>
+                    <View style={{ marginBottom: 8 }}>
+                      <Text style={{ fontSize: 20 }}>{(globalThis as any).__pieceInput}</Text>
+                    </View>
+
+                    {rows.map((row, ri) => (
+                      <View key={ri} style={{ flexDirection: "row", justifyContent: "center", marginTop: 8 }}>
+                        {row.map((k) => (
+                          <TouchableOpacity
+                            key={k}
+                            onPress={() => handleKey(k)}
+                            style={[styles.qtyBtn, { minWidth: 72, marginHorizontal: 6, paddingVertical: 14 }]}
+                          >
+                            <Text style={{ fontSize: 18 }}>{k}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()
+              }
 
               <TouchableOpacity style={styles.addBtn} onPress={addItem}>
                 <Text style={styles.addText}>ADD TO BILL</Text>
