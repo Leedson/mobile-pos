@@ -58,7 +58,15 @@ export default function SweetShopPOSScreen() {
     type?: string[];
   };
   const NUM_COLUMNS = 2; // always fixed
-  
+
+
+  // cache current screen info and keep it updated on dimension changes
+  const [screenInfo, setScreenInfo] = useState(getScreenInfo());
+  Dimensions.addEventListener("change", () => {
+    setScreenInfo(getScreenInfo());
+  });
+
+
 
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
@@ -80,7 +88,7 @@ export default function SweetShopPOSScreen() {
   const dispatch = useDispatch();
 
 
-  const inventory = useSelector((state: any) => state.inventory.items); 
+  const inventory = useSelector((state: any) => state.inventory.items);
 
   // fetch inventory once, and reset qty when mode changes
   useEffect(() => {
@@ -98,14 +106,14 @@ export default function SweetShopPOSScreen() {
   }, [inventory]);
 
   useEffect(() => {
-    if(selected) {
-      if(selected.mode === "PIECE") {
+    if (selected) {
+      if (selected.mode === "PIECE") {
         setPieces(selected.qty);
-      } else if(selected.mode === "WEIGHT") {
+      } else if (selected.mode === "WEIGHT") {
         setWeight(selected.qty);
       }
-      
-      if(selected.type.some((t: any) => t === 'Kg')) {
+
+      if (selected.type.some((t: any) => t === 'Kg')) {
         setMode("WEIGHT");
       } else {
         setMode("PIECE");
@@ -124,7 +132,7 @@ export default function SweetShopPOSScreen() {
 
   // -------------------- FILTER LOGIC --------------------
   const filtered = useMemo(() => {
-    if(!letter && !query) return [];
+    if (!letter && !query) return [];
     return products.filter(
       (p) =>
         p.name.toUpperCase().startsWith(letter) &&
@@ -167,7 +175,7 @@ export default function SweetShopPOSScreen() {
     .toFixed(2);
 
   const setLetterWithTime = (ltr: string) => () => {
-    if(ltr === '-') {
+    if (ltr === '-') {
       setLetter('');
       setSelected(null);
       return;
@@ -197,9 +205,9 @@ export default function SweetShopPOSScreen() {
     }, DEBOUNCE_MS);
   };
 
-  const setPendingBilling = () => { 
+  const setPendingBilling = () => {
     setPendingBills(pendingBills => [...pendingBills, bill]);
-    setBill([]);  
+    setBill([]);
     Alert.alert("Success", "Bill has been moved to pending bills.");
   }
 
@@ -211,8 +219,8 @@ export default function SweetShopPOSScreen() {
     setLoader(true);
     saveBillPdf(bill);
     setBill([]); // clear bill after printing
-    setTimeout(() =>  {
-       Alert.alert("Success", "Bill has been generated.");
+    setTimeout(() => {
+      Alert.alert("Success", "Bill has been generated.");
       setLoader(false);
     }, 500);
 
@@ -221,7 +229,7 @@ export default function SweetShopPOSScreen() {
     }).catch(() => {
       // Alert.alert("Error", "Failed to make the network.");
     });
-    
+
 
     // addRowToSheet(bill as unknown as BillingDetails[], lastEditedRowId, paymentMode).then(() => {
     //   setLastEditedRowId(prev => prev + 1);
@@ -240,7 +248,7 @@ export default function SweetShopPOSScreen() {
     //   Alert.alert("Error", "Failed to save bill.");
     //   setLoader(false);
     // });
-    
+
   }
 
   const generateTodaysReport = () => {
@@ -254,7 +262,7 @@ export default function SweetShopPOSScreen() {
   }
 
   const handleRowPress = (item: BillItem, index: number) => {
-    if(item.mode === "WEIGHT") {
+    if (item.mode === "WEIGHT") {
       item.type = ['Kg'];
     } else {
       item.type = ['Pc'];
@@ -304,12 +312,13 @@ export default function SweetShopPOSScreen() {
                 keyExtractor={(item) => item}
                 contentContainerStyle={styles.alphaRow}
                 horizontal={false}
-                numColumns={4}
+                numColumns={screenInfo.isLandscape ? 5 : 4}
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     onPress={setLetterWithTime(item)}
                     style={[
                       styles.alphaBtn,
+                      screenInfo.isLandscape ? styles.alphaBtnTablet : styles.alphaBtnMobile,
                       letter === item && styles.alphaActive,
                     ]}
                   >
@@ -333,31 +342,31 @@ export default function SweetShopPOSScreen() {
             style={styles.itemBtn}
             onPress={() => setPendingQueue(!pendingQueue)}  >
             <Text style={styles.addText}>Back to Billing</Text>
-            </TouchableOpacity>
+          </TouchableOpacity>
         </View>
-      }
-      <ManualRateInputModal visible={rateModalInputVisible} setVisible={setRateModalInputVisible} callback={(amount: string) => {
-        const enteredAmount = parseFloat(amount);
-        if (!selected || isNaN(enteredAmount)) {
+        }
+        <ManualRateInputModal visible={rateModalInputVisible} setVisible={setRateModalInputVisible} callback={(amount: string) => {
+          const enteredAmount = parseFloat(amount);
+          if (!selected || isNaN(enteredAmount)) {
+            setRateModalInputVisible(false);
+            return;
+          }
+          const unitRate = Number(selected.rate) || 0;
+          if (unitRate <= 0) {
+            setRateModalInputVisible(false);
+            return;
+          }
+          if (mode === "WEIGHT") {
+            // enteredAmount is total amount -> weight = total / rate (kg)
+            const newWeight = parseFloat((enteredAmount / unitRate).toFixed(3));
+            setWeight(Math.max(0, newWeight));
+          } else {
+            // PIECE mode -> pieces = total / rate (pcs)
+            const newPieces = parseFloat((enteredAmount / unitRate).toFixed(3));
+            setPieces(Math.max(0, newPieces));
+          }
           setRateModalInputVisible(false);
-          return;
-        }
-        const unitRate = Number(selected.rate) || 0;
-        if (unitRate <= 0) {
-          setRateModalInputVisible(false);
-          return;
-        }
-        if (mode === "WEIGHT") {
-          // enteredAmount is total amount -> weight = total / rate (kg)
-          const newWeight = parseFloat((enteredAmount / unitRate).toFixed(3));
-          setWeight(Math.max(0, newWeight));
-        } else {
-          // PIECE mode -> pieces = total / rate (pcs)
-          const newPieces = parseFloat((enteredAmount / unitRate).toFixed(3));
-          setPieces(Math.max(0, newPieces));
-        }
-        setRateModalInputVisible(false);
-      }}/>
+        }} />
 
         {/* CENTER PANEL */}
         <View style={styles.center}>
@@ -366,12 +375,12 @@ export default function SweetShopPOSScreen() {
               <Text style={styles.selTitle}>{selected.name}</Text>
               <Text style={styles.selRate}>₹{selected.rate}</Text>
               <Text style={{ marginBottom: 10 }}>Calculated Rate: ₹{selected.rate * (mode === "WEIGHT" ? weight : pieces)}</Text>
-               <TouchableOpacity
-                  onPress={() => setRateModalInputVisible(true)}
-                  style={[styles.qtyBtn, { minWidth: 72, marginBottom: 6, paddingVertical: 14 }]}
-                >
-                  <Text>MR</Text>
-                </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setRateModalInputVisible(true)}
+                style={[styles.qtyBtn, { minWidth: 72, marginBottom: 6, paddingVertical: 14 }]}
+              >
+                <Text>MR</Text>
+              </TouchableOpacity>
               <View style={styles.modeRow}>
                 <TouchableOpacity
                   onPress={() => setMode("WEIGHT")}
@@ -390,122 +399,122 @@ export default function SweetShopPOSScreen() {
                 mode === "WEIGHT" ? <Text style={styles.qtyText}>{weight} kg</Text> : <Text style={styles.qtyText}>{pieces} pcs</Text>
               }
               <ScrollView>
-              {mode === "WEIGHT" ? (
-                <>
-                 
-                  <View style={styles.qtyRow}>
-                    {WEIGHTS.map((w) => (
-                      <TouchableOpacity
-                        key={w}
-                        onPress={() => setWeight(w)}
-                        style={styles.qtyBtn}
-                      >
-                        <Text>{w * 1000}g</Text>
-                        <View style={{ marginTop: 8, flexDirection: "row", alignItems: "center" }}>
-                          <TouchableOpacity
-                            onPress={() =>
-                              setWeight((prev) => Math.max(w, parseFloat((prev - w).toFixed(3))))
-                            }
-                            style={{ padding: 6, backgroundColor: "#fff", borderRadius: 6, marginRight: 6 }}
-                          >
-                            <Text>-</Text>
-                          </TouchableOpacity>
+                {mode === "WEIGHT" ? (
+                  <>
 
-                          <Text style={{ minWidth: 36, textAlign: "center" }}>
-                            {Math.max(0, Math.round(weight / w))}x
-                          </Text>
+                    <View style={styles.qtyRow}>
+                      {WEIGHTS.map((w) => (
+                        <TouchableOpacity
+                          key={w}
+                          onPress={() => setWeight(w)}
+                          style={styles.qtyBtn}
+                        >
+                          <Text>{w * 1000}g</Text>
+                          <View style={{ marginTop: 8, flexDirection: "row", alignItems: "center" }}>
+                            <TouchableOpacity
+                              onPress={() =>
+                                setWeight((prev) => Math.max(w, parseFloat((prev - w).toFixed(3))))
+                              }
+                              style={{ padding: 6, backgroundColor: "#fff", borderRadius: 6, marginRight: 6 }}
+                            >
+                              <Text>-</Text>
+                            </TouchableOpacity>
 
-                          <TouchableOpacity
-                            onPress={() =>
-                              setWeight((prev) => parseFloat((prev + w).toFixed(3)))
-                            }
-                            style={{ padding: 6, backgroundColor: "#fff", borderRadius: 6, marginLeft: 6 }}
-                          >
-                            <Text>+</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </>
-              ) : (
-                <>
-                  {/* <Text style={styles.qtyText}>{pieces} pcs</Text> */}
-                  <View style={styles.qtyRow}>
-                    <TouchableOpacity
-                      style={styles.qtyBtn}
-                      onPress={() => setPieces(Math.max(1, pieces - 1))}
-                    >
-                      <Text>-</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.qtyBtn}
-                      onPress={() => setPieces(pieces + 1)}
-                    >
-                      <Text>+</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
+                            <Text style={{ minWidth: 36, textAlign: "center" }}>
+                              {Math.max(0, Math.round(weight / w))}x
+                            </Text>
 
-              {
-                mode !== "WEIGHT" && 
-              (() => {
-                if (!(globalThis as any).__pieceInput || parseFloat((globalThis as any).__pieceInput) !== pieces) {
-                  (globalThis as any).__pieceInput = String(pieces);
-                }
-
-                const handleKey = (k: string) => {
-                  let cur: string = (globalThis as any).__pieceInput || "0";
-                  if (k === "⌫") {
-                    cur = cur.slice(0, -1);
-                    if (cur === "" || cur === "-" || cur === ".") cur = "0";
-                  } else if (k === ".") {
-                    if (!cur.includes(".")) cur = cur + ".";
-                  } else {
-                    // digit
-                    if (cur === "0") cur = k;
-                    else cur = cur + k;
-                  }
-                  (globalThis as any).__pieceInput = cur;
-                  const parsed = parseFloat(cur);
-                  setPieces(isNaN(parsed) ? 0 : parsed);
-                };
-
-                const rows = [
-                  ["1", "2", "3"],
-                  ["4", "5", "6"],
-                  ["7", "8", "9"],
-                  [".", "0", "⌫"],
-                ];
-
-                return (
-                  <View style={{ width: "100%", alignItems: "center", marginTop: 12 }}>
-                    <View style={{ marginBottom: 8 }}>
-                      <Text style={{ fontSize: 20 }}>{(globalThis as any).__pieceInput}</Text>
+                            <TouchableOpacity
+                              onPress={() =>
+                                setWeight((prev) => parseFloat((prev + w).toFixed(3)))
+                              }
+                              style={{ padding: 6, backgroundColor: "#fff", borderRadius: 6, marginLeft: 6 }}
+                            >
+                              <Text>+</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
                     </View>
+                  </>
+                ) : (
+                  <>
+                    {/* <Text style={styles.qtyText}>{pieces} pcs</Text> */}
+                    <View style={styles.qtyRow}>
+                      <TouchableOpacity
+                        style={styles.qtyBtn}
+                        onPress={() => setPieces(Math.max(1, pieces - 1))}
+                      >
+                        <Text>-</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.qtyBtn}
+                        onPress={() => setPieces(pieces + 1)}
+                      >
+                        <Text>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
 
-                    {rows.map((row, ri) => (
-                      <View key={ri} style={{ flexDirection: "row", justifyContent: "center", marginTop: 8 }}>
-                        {row.map((k) => (
-                          <TouchableOpacity
-                            key={k}
-                            onPress={() => handleKey(k)}
-                            style={[styles.qtyBtn, { minWidth: 72, marginHorizontal: 6, paddingVertical: 14 }]}
-                          >
-                            <Text style={{ fontSize: 18 }}>{k}</Text>
-                          </TouchableOpacity>
+                {
+                  mode !== "WEIGHT" &&
+                  (() => {
+                    if (!(globalThis as any).__pieceInput || parseFloat((globalThis as any).__pieceInput) !== pieces) {
+                      (globalThis as any).__pieceInput = String(pieces);
+                    }
+
+                    const handleKey = (k: string) => {
+                      let cur: string = (globalThis as any).__pieceInput || "0";
+                      if (k === "⌫") {
+                        cur = cur.slice(0, -1);
+                        if (cur === "" || cur === "-" || cur === ".") cur = "0";
+                      } else if (k === ".") {
+                        if (!cur.includes(".")) cur = cur + ".";
+                      } else {
+                        // digit
+                        if (cur === "0") cur = k;
+                        else cur = cur + k;
+                      }
+                      (globalThis as any).__pieceInput = cur;
+                      const parsed = parseFloat(cur);
+                      setPieces(isNaN(parsed) ? 0 : parsed);
+                    };
+
+                    const rows = [
+                      ["1", "2", "3"],
+                      ["4", "5", "6"],
+                      ["7", "8", "9"],
+                      [".", "0", "⌫"],
+                    ];
+
+                    return (
+                      <View style={{ width: "100%", alignItems: "center", marginTop: 12 }}>
+                        <View style={{ marginBottom: 8 }}>
+                          <Text style={{ fontSize: 20 }}>{(globalThis as any).__pieceInput}</Text>
+                        </View>
+
+                        {rows.map((row, ri) => (
+                          <View key={ri} style={{ flexDirection: "row", justifyContent: "center", marginTop: 8 }}>
+                            {row.map((k) => (
+                              <TouchableOpacity
+                                key={k}
+                                onPress={() => handleKey(k)}
+                                style={[styles.qtyBtn, { minWidth: 72, marginHorizontal: 6, paddingVertical: 14 }]}
+                              >
+                                <Text style={{ fontSize: 18 }}>{k}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
                         ))}
                       </View>
-                    ))}
-                  </View>
-                );
-              })()
-              }
+                    );
+                  })()
+                }
 
-              <TouchableOpacity style={styles.addBtn} onPress={addItem}>
-                <Text style={styles.addText}>ADD TO BILL</Text>
-              </TouchableOpacity>
+                <TouchableOpacity style={styles.addBtn} onPress={addItem}>
+                  <Text style={styles.addText}>ADD TO BILL</Text>
+                </TouchableOpacity>
               </ScrollView>
             </>
           ) : (
@@ -520,7 +529,7 @@ export default function SweetShopPOSScreen() {
               keyExtractor={(_, i) => i.toString()}
               renderItem={({ item, index }: { item: any, index: number }) => (
                 <TouchableOpacity
-                  style={styles.itemBtn}  
+                  style={styles.itemBtn}
                   onPress={() => {
                     setBill(item);
                     setPendingBills(pendingBills.filter((_, i) => i !== index));
@@ -541,7 +550,7 @@ export default function SweetShopPOSScreen() {
 
         {/* RIGHT PANEL */}
         <View style={styles.right}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
             <Text style={styles.billTitle}>Bill Items</Text>
             <TouchableOpacity onPress={() => setBill([])} style={{ padding: 2, width: 30, justifyContent: "center", alignItems: "center", display: "flex", backgroundColor: "#FCA5A5", borderRadius: 6 }}>
               <Text style={{ fontWeight: "700", color: "#7F1D1D" }}>X</Text>
@@ -561,8 +570,8 @@ export default function SweetShopPOSScreen() {
             renderItem={({ item, index }: { item: any, index: number }) => (
               <TouchableOpacity onPress={() => handleRowPress(item, index)} style={styles.billRow}>
                 <Text style={styles.billItem}>{item.name}</Text>
-                <Text style={{fontSize: 18}}>{item.mode === "WEIGHT" ? `${item.qty}kg` : `${item.qty} pcs`}</Text>
-                <Text style={{fontSize: 18}}>₹{item.amount}</Text>
+                <Text style={{ fontSize: 18 }}>{item.mode === "WEIGHT" ? `${item.qty}kg` : `${item.qty} pcs`}</Text>
+                <Text style={{ fontSize: 18 }}>₹{item.amount}</Text>
                 <TouchableOpacity onPress={() => deleteItem(index)}>
                   <Text style={styles.delete}>✕</Text>
                 </TouchableOpacity>
@@ -578,7 +587,7 @@ export default function SweetShopPOSScreen() {
 
       {/* BOTTOM BAR */}
       <View style={styles.bottom}>
-        { bill.length > 0 && <TouchableOpacity style={styles.payBtn} onPress={setPendingBilling}><Text>Set to Pending Bills</Text></TouchableOpacity> }
+        {bill.length > 0 && <TouchableOpacity style={styles.payBtn} onPress={setPendingBilling}><Text>Set to Pending Bills</Text></TouchableOpacity>}
         {/* <TouchableOpacity style={styles.payBtn} onPress={generateTodaysReport}><Text>Report(today's)</Text></TouchableOpacity> */}
         <TouchableOpacity style={[styles.payBtn, styles.printBtn]} onPress={printAndSaveBill()}>
           <Text>PRINT</Text>
@@ -588,10 +597,27 @@ export default function SweetShopPOSScreen() {
   );
 }
 
+
+// helper to get up-to-date values (call from components if you need realtime info)
+export const getScreenInfo = () => {
+  const { width: w, height: h } = Dimensions.get("window");
+  const portrait = h >= w;
+  const tablet = Math.min(w, h) >= 600;
+  return {
+    width: w,
+    height: h,
+    isPortrait: portrait,
+    isLandscape: !portrait,
+    isTablet: tablet,
+    ALPHA_SIZE: tablet ? 70 : 50,
+  };
+};
+
 // -------------------- STYLES --------------------
 const { width, height } = Dimensions.get("window");
+
 const isTablet = Math.min(width, height) >= 600; // breakpoint: 600dp
-const ALPHA_SIZE = isTablet ? 90 : 50;
+const ALPHA_SIZE = isTablet ? 70 : 50;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFF7ED" },
@@ -619,13 +645,19 @@ const styles = StyleSheet.create({
 
   alphaRow: { flexDirection: "row", marginBottom: 6 },
   alphaBtn: {
-    width: ALPHA_SIZE,
-    height: ALPHA_SIZE,
     alignItems: "center",
     justifyContent: "center",
     margin: 2,
     borderRadius: 4,
     backgroundColor: "#E7E5E4",
+  },
+  alphaBtnTablet: {
+    width: 70,
+    height: 70,
+  },
+  alphaBtnMobile: {
+    width: 50,
+    height: 50,
   },
   alphaActive: { backgroundColor: "#FB923C" },
   alphaText: { fontSize: 12, fontWeight: "700" },
@@ -677,10 +709,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 10,
     gap: 10,
   },
-  billItem: { flex: 1 },
+  billItem: { flex: 1, fontSize: 18 },
   delete: { color: "red", fontWeight: "800", fontSize: 18 },
 
   total: { fontSize: 18, fontWeight: "800", marginTop: 10 },
