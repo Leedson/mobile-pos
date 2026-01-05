@@ -97,3 +97,78 @@ export const generateBillHTML = (items: any) => {
     </html>
   `;
 };
+
+export const generateBillText = (items: any, empName: string) => {
+  let rows = "";
+  let subtotal = 0;
+
+  items.forEach((item: any, i: number) => {
+    subtotal += parseFloat(item.amount);
+
+    rows += `${i + 1}  ${item.name.padEnd(10)} ${item.mode === "WEIGHT" ? item.qty + "kg" : item.qty + "pc"}  ${item.rate.toFixed(2)}  ${item.amount.toFixed(2)}\n`;
+  });
+
+  return `
+        Thaya's
+   Sweet & Cakes Shop
+   TH/NS/${Date.now()}
+
+Date: ${new Date().toLocaleDateString()}   Time: ${new Date().toLocaleTimeString()}
+Cashier: ${empName}
+--------------------------------
+#  Item        Qty   Rate   Amt
+--------------------------------
+${rows}
+--------------------------------
+TOTAL: ₹ ${subtotal.toFixed(2)}
+--------------------------------
+        Thank You
+  `;
+};
+
+export const generateBillReceipt = (items: any, empName: string = "Admin") => {
+  let subtotal = 0;
+
+  const rows = items.map((item: any, i: number) => {
+    subtotal += parseFloat(item.amount);
+    return [
+      `${i + 1}. ${item.name}`,
+      `${item.mode === "WEIGHT" ? item.qty + "kg" : item.qty + "pc"}`,
+      `${item.rate}`,
+      `${item.amount}`,
+    ];
+  });
+
+  return [
+    // Header
+    { type: 'text', content: "Thaya's", style: { align: 'center', bold: true, size: 'double' } },
+    { type: 'text', content: "Sweet & Cakes Shop", style: { align: 'center' } },
+    { type: 'text', content: `TH/NS/${Date.now()}`, style: { align: 'center' } },
+    { type: 'line' },
+
+    // Info
+    { type: 'text', content: `Date: ${new Date().toLocaleDateString()}  Time: ${new Date().toLocaleTimeString()}` },
+    { type: 'text', content: `Cashier: ${empName}` },
+    { type: 'line' },
+
+    // Table
+    {
+      type: 'table',
+      headers: ['Item', 'Qty', 'Rate', 'Amt'],
+      rows,
+      columnWidths: [40, 20, 20, 20],
+      alignments: ['left', 'center', 'center', 'right'],
+    },
+
+    // Total
+    { type: 'line' },
+    { type: 'text', content: `TOTAL: Rs. ${subtotal.toFixed(2)}`, style: { bold: true, size: 'double_width', align: 'right' } },
+    { type: 'line' },
+
+    // Footer
+    { type: 'text', content: "Thank You", style: { align: 'center' } },
+    { type: 'feed', lines: 3 },
+    { type: 'cut' },
+  ];
+};
+

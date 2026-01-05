@@ -21,12 +21,16 @@ const inventorySlice = createSlice({
     items: [],
     status: "idle",
     error: null,
+    empName: '',
   },
   reducers: {
     // for local-only updates if needed
     resetInventory: (state: any) => {
       state.items = [];
     },
+    setEmpName: (state: any, action: any) => {
+      state.empName = action.payload;
+    }
   },
   extraReducers: (builder) => {
     builder
@@ -45,5 +49,5 @@ const inventorySlice = createSlice({
   },
 });
 
-export const { resetInventory } = inventorySlice.actions;
+export const { resetInventory, setEmpName } = inventorySlice.actions;
 export default inventorySlice.reducer;

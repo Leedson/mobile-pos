@@ -14,21 +14,34 @@ import {
 import SweetShopPOSScreen from './components/SweetshopPOSScreen';
 import { Provider } from 'react-redux';
 import { store } from './reducers/store';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import HomeScreen from './components/home/HomeScreen';
 
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
+const Stack = createNativeStackNavigator();
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+    <NavigationContainer>
       <Provider store={store}>
-        <SweetShopPOSScreen /> 
+        <Stack.Navigator initialRouteName="Home">
+          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="SweetShopPOS" component={SweetShopPOSScreen} />
+        </Stack.Navigator>
       </Provider>
+    </NavigationContainer>
+
+    // <SafeAreaProvider>
+    //   <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+    //   <Provider store={store}>
+    //     <SweetShopPOSScreen /> 
+    //   </Provider>
       
-    </SafeAreaProvider>
+    // </SafeAreaProvider>
   );
 }
 

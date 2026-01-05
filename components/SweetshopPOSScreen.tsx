@@ -21,7 +21,7 @@ import {
 import { fetchInventory } from "../features/inventory/InventorySlice";
 import { useDispatch, useSelector } from "react-redux";
 import { formatThermalBill } from "../servies/ThermalPrintService";
-import { saveBillPdf } from "../servies/Bill";
+import { generateBillReceipt, generateBillText, saveBillPdf } from "../servies/Bill";
 import { SafeAreaView } from "react-native-safe-area-context";
 // import { initDatabase } from "../src/database/initDatabase";
 // import { createBill, fetchTodaysReport, insertBillItems } from "../src/database/billingRepo";
@@ -29,6 +29,7 @@ import { generateReportHTML, saveReportPdf } from "../servies/Reports";
 import { fetchLastRow, BillingDetails, addRowToSheet, retryAsync } from "../features/inventory/InventoryAPI";
 import { Dimensions } from "react-native";
 import ManualRateInputModal from "./ManualRateInputModal";
+import {ThermalPrinter} from '@finan-me/react-native-thermal-printer';
 
 // -------------------- SAMPLE DATA --------------------
 const PRODUCTS = [
@@ -87,8 +88,43 @@ export default function SweetShopPOSScreen() {
   // ensure you import useDispatch and useSelector from 'react-redux' at the top
   const dispatch = useDispatch();
 
+  const handleScan = async () => {
+    const {paired, found} = await ThermalPrinter.scanDevices();
+    return null;
+    // console.log(found);
+    // if(found) {
+    //   return found[0].address;
+    // }
+    //setDevices(found);
+  };
+
+  const handlePrint = async (receiptText: string) => {
+    let mac: any = await handleScan();
+    if(!mac) {
+      mac = 'bt:66:32:3D:B4:93:FC'; //default mac address for testing
+    };
+   
+    const job = {
+    printers: [
+      {
+        address: mac,
+        options: {
+          paperWidthMm: 78, // 58mm or 80mm
+          encoding: 'UTF‑8',
+          marginMm: 3, // 1mm margin each side (default)
+        },
+      },
+    ],
+    documents: [generateBillReceipt(bill, empName)],
+}
+
+await ThermalPrinter.printReceipt(job as any);
+  };
+
+
 
   const inventory = useSelector((state: any) => state.inventory.items);
+  const empName = useSelector((state: any) => state.inventory.empName);
 
   // fetch inventory once, and reset qty when mode changes
   useEffect(() => {
@@ -211,20 +247,28 @@ export default function SweetShopPOSScreen() {
     Alert.alert("Success", "Bill has been moved to pending bills.");
   }
 
-  const printAndSaveBill = () => () => {
+  
+  async function printBill(items: any, empName: string) {
+    // const receiptText = generateBillText(items, empName);
+    await handlePrint('');
+  }
+
+
+  const printAndSaveBill = () => async () => {
     // MOCK function - implement actual print and save logic as needed
     // console.log("Printing bill...", bill);
     // const formattedBill = formatThermalBill(bill, 1542);
     // console.log(formattedBill);
     setLoader(true);
     saveBillPdf(bill);
+    await printBill(bill, empName);
     setBill([]); // clear bill after printing
     setTimeout(() => {
       Alert.alert("Success", "Bill has been generated.");
       setLoader(false);
     }, 500);
 
-    retryAsync(() => addRowToSheet(bill as unknown as BillingDetails[], paymentMode), 3, 1500).then(() => {
+    retryAsync(() => addRowToSheet(bill as unknown as BillingDetails[], paymentMode, empName), 3, 1500).then(() => {
       // setLastEditedRowId(prev => prev + 1);
     }).catch(() => {
       // Alert.alert("Error", "Failed to make the network.");
@@ -283,7 +327,7 @@ export default function SweetShopPOSScreen() {
       {/* TOP BAR */}
       <View style={styles.topBar}>
         <Text style={styles.topText}>Bill {Date.now()}</Text>
-        <Text style={styles.topText}>Sweet Shop POS</Text>
+        <Text style={styles.topText}>Sweet Shop POS: {empName}</Text>
       </View>
 
       <View style={styles.body}>

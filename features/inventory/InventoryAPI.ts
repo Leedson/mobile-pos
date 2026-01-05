@@ -43,7 +43,7 @@ export interface BillingDetails {
 //deploymentid AKfycbwBl8DnNiLFQjzyaIRgGInLS_ajmGaokIdOQXreXOI-fsUhRsdUfIQNWyMDmkVgZa6l
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwBl8DnNiLFQjzyaIRgGInLS_ajmGaokIdOQXreXOI-fsUhRsdUfIQNWyMDmkVgZa6l/exec';
 
-export const addRowToSheet = async (item: BillingDetails[], paymentMode: string) => {
+export const addRowToSheet = async (item: BillingDetails[], paymentMode: string, empName: string) => {
     const payload =  JSON.stringify({ rows: item.map(i => ({
       name: i.name,
       rate: i.rate,
@@ -51,7 +51,8 @@ export const addRowToSheet = async (item: BillingDetails[], paymentMode: string)
       mode: i.mode,
       amount: i.amount,
       paymentMode: paymentMode,
-    })), sheetName: 'Demo'});
+      empName
+    })), sheetName: 'Thaya'});
     //sheetName: 'Demo' is for testing purpose only. Change it to 'Thaya' when needed.
     console.log('constructured payment payload:', payload);
     const res = await fetch(SCRIPT_URL, {
