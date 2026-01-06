@@ -17,6 +17,7 @@ import { store } from './reducers/store';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from './components/home/HomeScreen';
+import ItemDetails from './components/details/ItemDetails';
 
 
 export type RootState = ReturnType<typeof store.getState>;
@@ -31,6 +32,7 @@ function App() {
         <Stack.Navigator initialRouteName="Home">
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="SweetShopPOS" component={SweetShopPOSScreen} />
+          <Stack.Screen name="ListDetails" component={ItemDetails} />
         </Stack.Navigator>
       </Provider>
     </NavigationContainer>

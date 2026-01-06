@@ -26,10 +26,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // import { initDatabase } from "../src/database/initDatabase";
 // import { createBill, fetchTodaysReport, insertBillItems } from "../src/database/billingRepo";
 import { generateReportHTML, saveReportPdf } from "../servies/Reports";
-import { fetchLastRow, BillingDetails, addRowToSheet, retryAsync } from "../features/inventory/InventoryAPI";
+import { fetchLastRow, BillingDetails, addRowToSheet, retryAsync, generateBillNumber } from "../features/inventory/InventoryAPI";
 import { Dimensions } from "react-native";
 import ManualRateInputModal from "./ManualRateInputModal";
 import {ThermalPrinter} from '@finan-me/react-native-thermal-printer';
+import { useMMKV } from "react-native-mmkv";
+import { useNavigation } from "@react-navigation/native";
+import { HomeScreenNavigationProp } from "./home/HomeScreen";
 
 // -------------------- SAMPLE DATA --------------------
 const PRODUCTS = [
@@ -47,17 +50,21 @@ const PRODUCTS = [
 const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ-".split("");
 const WEIGHTS = [0.1, 0.25, 0.5, 1]; // kg
 
-// -------------------- COMPONENT --------------------
-export default function SweetShopPOSScreen() {
-  type Product = typeof PRODUCTS[number];
-  type BillItem = {
+export type BillItem = {
     name: string;
     rate: number;
     mode: "WEIGHT" | "PIECE";
     qty: number;
     amount: string;
     type?: string[];
+    billNumber: string;
+    paymentMode: string;
+    empName: string;
   };
+// -------------------- COMPONENT --------------------
+export default function SweetShopPOSScreen() {
+  type Product = typeof PRODUCTS[number];
+
   const NUM_COLUMNS = 2; // always fixed
 
 
@@ -68,13 +75,13 @@ export default function SweetShopPOSScreen() {
   });
 
 
-
+  const navigation = useNavigation<HomeScreenNavigationProp>();
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const [letter, setLetter] = useState("A");
   const [selected, setSelected] = useState<any | null>(null);
 
-  const [mode, setMode] = useState<"WEIGHT" | "PIECE">("WEIGHT"); // WEIGHT | PIECE
+  const [mode, setMode] = useState<"WEIGHT" | "PIECE">("WEIGHT") // WEIGHT | PIECE
   const [weight, setWeight] = useState(0.25);
   const [pieces, setPieces] = useState(1);
   const [loader, setLoader] = useState(false);
@@ -82,8 +89,10 @@ export default function SweetShopPOSScreen() {
   const [pendingQueue, setPendingQueue] = useState<boolean>(false);
   const [paymentMode, setPaymentMode] = useState<"CASH" | "CARD" | "UPI">("CASH");
   const [rateModalInputVisible, setRateModalInputVisible] = useState<boolean>(false);
+  const [billNumber, setBillNumber] = useState<string>('');
 
   const [bill, setBill] = useState<BillItem[]>([]);
+  const storage = useMMKV();
 
   // ensure you import useDispatch and useSelector from 'react-redux' at the top
   const dispatch = useDispatch();
@@ -99,10 +108,10 @@ export default function SweetShopPOSScreen() {
   };
 
   const handlePrint = async (receiptText: string) => {
-    let mac: any = await handleScan();
-    if(!mac) {
-      mac = 'bt:66:32:3D:B4:93:FC'; //default mac address for testing
-    };
+    // let mac: any = await handleScan();
+    // if(!mac) {
+    //   mac = 'bt:66:32:3D:B4:93:FC'; //default mac address for testing
+    // };
    
     const job = {
     printers: [
@@ -123,23 +132,24 @@ await ThermalPrinter.printReceipt(job as any);
 
 
 
-  const inventory = useSelector((state: any) => state.inventory.items);
+  const inventory = useState([]); // useSelector((state: any) => state.inventory.items);
   const empName = useSelector((state: any) => state.inventory.empName);
+  const mac = useSelector((state: any) => state.inventory.mac);
 
   // fetch inventory once, and reset qty when mode changes
-  useEffect(() => {
-    dispatch(fetchInventory() as any);
-  }, [dispatch]);
+  // useEffect(() => {
+  //   dispatch(fetchInventory() as any);
+  // }, [dispatch]);
 
   useEffect(() => {
     // reset qty when mode changes
     setWeight(0.25);
-    setPieces(1);
+    setPieces(0);
   }, [mode]);
 
-  useEffect(() => {
-    setProducts(inventory);
-  }, [inventory]);
+  // useEffect(() => {
+  //   setProducts(inventory);
+  // }, []);
 
   useEffect(() => {
     if (selected) {
@@ -157,6 +167,16 @@ await ThermalPrinter.printReceipt(job as any);
     }
   }, [selected]);
 
+  useEffect(() => {
+    setBillNumber(generateBillNumber());
+    const inv = storage.getString('inventory');
+    if(inv) {
+      setProducts(JSON.parse(inv));
+    } else {
+      Alert.alert('Inventory Missing', 'No inventory found in local storage. Please sync inventory from home screen.');
+    }
+  }, []);
+
 
   // useEffect(() => {
   //   // initDatabase();  
@@ -165,16 +185,16 @@ await ThermalPrinter.printReceipt(job as any);
   //     setLastEditedRowId(row.lastRow[0]);
   //   }); 
   // }, []);
-
+  const [filtered, setFiltered] = useState<any>();
   // -------------------- FILTER LOGIC --------------------
-  const filtered = useMemo(() => {
-    if (!letter && !query) return [];
-    return products.filter(
-      (p) =>
-        p.name.toUpperCase().startsWith(letter) &&
-        p.name.toLowerCase().includes(query.toLowerCase())
-    );
-  }, [letter, query]);
+  // const filtered = useMemo(() => {
+  //   if (!letter && !query) return [];
+  //   return products.filter(
+  //     (p) =>
+  //       p.name.toUpperCase().startsWith(letter) &&
+  //       p.name.toLowerCase().includes(query.toLowerCase())
+  //   );
+  // }, [letter, query]);
 
   // -------------------- BILL ACTIONS --------------------
   const addItem = () => {
@@ -183,6 +203,7 @@ await ThermalPrinter.printReceipt(job as any);
     const amount = mode === "WEIGHT"
       ? selected.rate * weight
       : selected.rate * pieces;
+    if(!amount) return;
 
     setBill((b) => [
       ...b,
@@ -192,6 +213,9 @@ await ThermalPrinter.printReceipt(job as any);
         mode,
         qty,
         amount: amount.toFixed(2),
+        billNumber,
+        paymentMode,
+        empName
       },
     ]);
 
@@ -217,7 +241,7 @@ await ThermalPrinter.printReceipt(job as any);
       return;
     }
     // append the pressed alphabet (up to 3 chars), then clear after debounce interval
-    const DEBOUNCE_MS = 800;
+    const DEBOUNCE_MS = 500;
     const MAX_LEN = 3;
 
     // clear any existing timer (store timer on globalThis so it persists across renders)
@@ -230,14 +254,21 @@ await ThermalPrinter.printReceipt(job as any);
       if (!(globalThis as any).__timerDebounce) {
         letter = ltr;
       }
-      const next = letter.slice(0, MAX_LEN).toUpperCase();
+      (globalThis as any).__letter = letter;
+      // const next = letter.slice(0, MAX_LEN).toUpperCase();
       // console.log('formed ltters..', next, (globalThis as any).__timerDebounce);
-      return next;
+      return letter.toUpperCase();
     });
     (globalThis as any).__timerDebounce = 1;
     (globalThis as any).__alphaTimer = setTimeout(() => {
       (globalThis as any).__timerDebounce = 0;
       (globalThis as any).__alphaTimer = undefined;
+      setFiltered(products.filter(
+      (p) =>
+        p.name.toUpperCase().startsWith((globalThis as any).__letter) &&
+        p.name.toLowerCase().includes(query.toLowerCase())
+      )); 
+      // console.log('leeter', (globalThis as any).__letter);
     }, DEBOUNCE_MS);
   };
 
@@ -253,26 +284,66 @@ await ThermalPrinter.printReceipt(job as any);
     await handlePrint('');
   }
 
+  const reprintDetails = () => {
+    navigation.navigate('ListDetails');
+  }
 
   const printAndSaveBill = () => async () => {
+    if(bill.length === 0) {
+      Alert.alert("Error", "No items in the bill to print.");
+      return;
+    }
     // MOCK function - implement actual print and save logic as needed
     // console.log("Printing bill...", bill);
     // const formattedBill = formatThermalBill(bill, 1542);
     // console.log(formattedBill);
     setLoader(true);
     saveBillPdf(bill);
-    await printBill(bill, empName);
-    setBill([]); // clear bill after printing
-    setTimeout(() => {
-      Alert.alert("Success", "Bill has been generated.");
+    if(mac) {
+      Alert.alert("Success", `Bill has been generated. Do you want to print it?`, [
+        {
+          text: "No",
+          onPress: () => console.log("Cancel Pressed"),
+          style: "cancel"
+        },
+        {
+          text: "Yes",
+          onPress: async () => {
+            await printBill(bill, empName);
+          }
+        }
+      ],
+      { cancelable: false } // Prevent closing by tapping outside
+      );
       setLoader(false);
-    }, 500);
-
-    retryAsync(() => addRowToSheet(bill as unknown as BillingDetails[], paymentMode, empName), 3, 1500).then(() => {
-      // setLastEditedRowId(prev => prev + 1);
-    }).catch(() => {
-      // Alert.alert("Error", "Failed to make the network.");
-    });
+    } else {
+      setTimeout(() => {
+        Alert.alert("Success", `Bill has been generated. ${!mac ? 'Since printer MAC address is not set, bill was not printed.' : ''}`);
+        setLoader(false);
+      }, 500);
+    }
+    
+    setBill([]); // clear bill after printing
+    // setTimeout(() => {
+    //   Alert.alert("Success", `Bill has been generated. ${!mac ? 'Since printer MAC address is not set, bill was not printed.' : ''}`);
+    //   setLoader(false);
+    // }, 500);
+    const bills = storage.getString('bills');
+ 
+    if(bills) {
+      const parsedBills = JSON.parse(bills);
+      parsedBills.push(...bill);
+      storage.set('bills', JSON.stringify(parsedBills));
+    } else {
+      storage.set('bills', JSON.stringify(bill));
+    }
+    //below will be used whe syncing with google sheets is implemented
+    // retryAsync(() => addRowToSheet(bill as unknown as BillingDetails[], paymentMode, empName), 3, 1500).then(() => {
+    //   // setLastEditedRowId(prev => prev + 1);
+    // }).catch(() => {
+    //   // Alert.alert("Error", "Failed to make the network.");
+    // });
+    setBillNumber(generateBillNumber());
 
 
     // addRowToSheet(bill as unknown as BillingDetails[], lastEditedRowId, paymentMode).then(() => {
@@ -326,7 +397,7 @@ await ThermalPrinter.printReceipt(job as any);
       )}
       {/* TOP BAR */}
       <View style={styles.topBar}>
-        <Text style={styles.topText}>Bill {Date.now()}</Text>
+        <Text style={styles.topText}>Bill {billNumber}</Text>
         <Text style={styles.topText}>Sweet Shop POS: {empName}</Text>
       </View>
 
@@ -363,7 +434,7 @@ await ThermalPrinter.printReceipt(job as any);
                     style={[
                       styles.alphaBtn,
                       screenInfo.isLandscape ? styles.alphaBtnTablet : styles.alphaBtnMobile,
-                      letter === item && styles.alphaActive,
+                      letter.indexOf(item) > -1 && styles.alphaActive,
                     ]}
                   >
                     <Text style={styles.alphaText}>{item}</Text>
@@ -426,18 +497,18 @@ await ThermalPrinter.printReceipt(job as any);
                 <Text>MR</Text>
               </TouchableOpacity>
               <View style={styles.modeRow}>
-                <TouchableOpacity
+                {selected.type.includes('Kg') && <TouchableOpacity
                   onPress={() => setMode("WEIGHT")}
                   style={[styles.modeBtn, mode === "WEIGHT" && styles.modeActive]}
                 >
                   <Text>WEIGHT</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </TouchableOpacity>}
+                {selected.type.includes('Pcs') && <TouchableOpacity
                   onPress={() => setMode("PIECE")}
                   style={[styles.modeBtn, mode === "PIECE" && styles.modeActive]}
                 >
                   <Text>PIECE</Text>
-                </TouchableOpacity>
+                </TouchableOpacity>}
               </View>
               {
                 mode === "WEIGHT" ? <Text style={styles.qtyText}>{weight} kg</Text> : <Text style={styles.qtyText}>{pieces} pcs</Text>
@@ -631,11 +702,15 @@ await ThermalPrinter.printReceipt(job as any);
 
       {/* BOTTOM BAR */}
       <View style={styles.bottom}>
+        <TouchableOpacity style={[styles.payBtn, styles.printBtn]} onPress={reprintDetails}>
+          <Text>RE-PRINT</Text>
+        </TouchableOpacity>
         {bill.length > 0 && <TouchableOpacity style={styles.payBtn} onPress={setPendingBilling}><Text>Set to Pending Bills</Text></TouchableOpacity>}
         {/* <TouchableOpacity style={styles.payBtn} onPress={generateTodaysReport}><Text>Report(today's)</Text></TouchableOpacity> */}
         <TouchableOpacity style={[styles.payBtn, styles.printBtn]} onPress={printAndSaveBill()}>
           <Text>PRINT</Text>
         </TouchableOpacity>
+        
       </View>
     </SafeAreaView>
   );
@@ -653,7 +728,7 @@ export const getScreenInfo = () => {
     isPortrait: portrait,
     isLandscape: !portrait,
     isTablet: tablet,
-    ALPHA_SIZE: tablet ? 70 : 50,
+    ALPHA_SIZE: tablet ? 65 : 45,
   };
 };
 
@@ -696,12 +771,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#E7E5E4",
   },
   alphaBtnTablet: {
-    width: 70,
-    height: 70,
+    width: 65,
+    height: 65,
   },
   alphaBtnMobile: {
-    width: 50,
-    height: 50,
+    width: 45,
+    height: 45,
   },
   alphaActive: { backgroundColor: "#FB923C" },
   alphaText: { fontSize: 12, fontWeight: "700" },

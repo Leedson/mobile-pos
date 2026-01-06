@@ -21,7 +21,7 @@ export const saveBillPdf = async (items: any) => {
 
     const options = {
       html,
-      fileName: `Bill_${Date.now()}`,
+      fileName: `Bill_${items[0].billNumber}`,
       directory: "Documents", // Android: /Documents
     };
 
@@ -66,7 +66,7 @@ export const generateBillHTML = (items: any) => {
     <body>
       <h3 class="center">Thaya's</h3>
       <p class="center">Sweet & Cakes Shop</p>
-      <p class="center">TH/NS/${Date.now()}</p>
+      <p class="center">TH/NS/${items[0].billNumber}</p>
       <table>
         <tr>
           <th>Date</th>
@@ -143,7 +143,7 @@ export const generateBillReceipt = (items: any, empName: string = "Admin") => {
     // Header
     { type: 'text', content: "Thaya's", style: { align: 'center', bold: true, size: 'double' } },
     { type: 'text', content: "Sweet & Cakes Shop", style: { align: 'center' } },
-    { type: 'text', content: `TH/NS/${Date.now()}`, style: { align: 'center' } },
+    { type: 'text', content: `${items[0].billNumber}`, style: { align: 'center' } },
     { type: 'line' },
 
     // Info
