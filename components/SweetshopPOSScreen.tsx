@@ -48,7 +48,7 @@ const PRODUCTS = [
 ];
 
 const ALPHABETS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ-".split("");
-const WEIGHTS = [0.1, 0.25, 0.5, 1]; // kg
+const WEIGHTS = [0.025, 0.05, 0.1, 0.25, 0.5, 1]; // kg
 
 export type BillItem = {
     name: string;
@@ -288,19 +288,8 @@ await ThermalPrinter.printReceipt(job as any);
     navigation.navigate('ListDetails');
   }
 
-  const printAndSaveBill = () => async () => {
-    if(bill.length === 0) {
-      Alert.alert("Error", "No items in the bill to print.");
-      return;
-    }
-    // MOCK function - implement actual print and save logic as needed
-    // console.log("Printing bill...", bill);
-    // const formattedBill = formatThermalBill(bill, 1542);
-    // console.log(formattedBill);
-    setLoader(true);
-    saveBillPdf(bill);
-    if(mac) {
-      Alert.alert("Success", `Bill has been generated. Do you want to print it?`, [
+  const continueFlow = () => {
+    Alert.alert("Success", `Bill has been generated. Do you want to print it?`, [
         {
           text: "No",
           onPress: () => console.log("Cancel Pressed"),
@@ -315,15 +304,9 @@ await ThermalPrinter.printReceipt(job as any);
       ],
       { cancelable: false } // Prevent closing by tapping outside
       );
-      setLoader(false);
-    } else {
-      setTimeout(() => {
-        Alert.alert("Success", `Bill has been generated. ${!mac ? 'Since printer MAC address is not set, bill was not printed.' : ''}`);
-        setLoader(false);
-      }, 500);
-    }
-    
-    setBill([]); // clear bill after printing
+  }
+  const submitBill = () => {
+     setBill([]); // clear bill after printing
     // setTimeout(() => {
     //   Alert.alert("Success", `Bill has been generated. ${!mac ? 'Since printer MAC address is not set, bill was not printed.' : ''}`);
     //   setLoader(false);
@@ -344,6 +327,89 @@ await ThermalPrinter.printReceipt(job as any);
     //   // Alert.alert("Error", "Failed to make the network.");
     // });
     setBillNumber(generateBillNumber());
+  }
+  const printAndSaveBill = () => async () => {
+    if(bill.length === 0) {
+      Alert.alert("Error", "No items in the bill to print.");
+      return;
+    }
+    // MOCK function - implement actual print and save logic as needed
+    // console.log("Printing bill...", bill);
+    // const formattedBill = formatThermalBill(bill, 1542);
+    // console.log(formattedBill);
+    setLoader(true);
+   
+    if(mac) {
+      Alert.alert("Payment Confirmation Message", `Please Choose the paymentmode`, [
+        {
+          text: "Cancel",
+          onPress: () => {
+            console.log("Cancel Pressed");
+          },
+          style: "cancel"
+        },
+        {
+          text: "Cash",
+          onPress: () => {
+            setPaymentMode("CASH");
+            // saveBillPdf(bill);
+            continueFlow();
+            submitBill();
+          },
+          style: "cancel"
+        },
+        {
+          text: "UPI",
+          onPress: async () => {
+            setPaymentMode("UPI");
+            // saveBillPdf(bill);
+            continueFlow();
+            submitBill();
+          }
+        }
+      ],
+      { cancelable: false } // Prevent closing by tapping outside
+      );
+      
+      setLoader(false);
+    } else {
+      setTimeout(() => {
+        Alert.alert("Payment Confirmation Message", `Please Choose the paymentmode`, [
+        {
+          text: "Cancel",
+          onPress: () => {
+            console.log("Cancel Pressed");
+          },
+          style: "cancel"
+        },
+        {
+          text: "Cash",
+          onPress: () => {
+            setPaymentMode("CASH");
+            // saveBillPdf(bill);
+            submitBill();
+            Alert.alert("Success", `Bill has been generated. ${!mac ? 'Since printer MAC address is not set, bill was not printed.' : ''}`);
+          },
+          style: "cancel"
+        },
+        {
+          text: "UPI",
+          onPress: async () => {
+            setPaymentMode("UPI");
+            // saveBillPdf(bill);
+            submitBill();
+            Alert.alert("Success", `Bill has been generated. ${!mac ? 'Since printer MAC address is not set, bill was not printed.' : ''}`);
+          }
+        }
+      ],
+      { cancelable: false } // Prevent closing by tapping outside
+      );
+        
+        setLoader(false);
+      }, 0);
+    }
+    
+   
 
 
     // addRowToSheet(bill as unknown as BillingDetails[], lastEditedRowId, paymentMode).then(() => {
@@ -445,7 +511,7 @@ await ThermalPrinter.printReceipt(job as any);
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.itemBtn}
-                onPress={() => setSelected(item)}
+                onPress={() => { setSelected(item); setBillNumber(generateBillNumber()); }}
               >
                 <Text style={styles.itemName}>{item.name}</Text>
                 <Text style={styles.itemRate}>₹{item.rate}/kg</Text>
@@ -694,9 +760,9 @@ await ThermalPrinter.printReceipt(job as any);
             )}
           />
           <Text style={styles.total}>TOTAL ₹{total}</Text>
-          <Text style={styles.total}>Selected Payment mode: {paymentMode}</Text>
+          {/* <Text style={styles.total}>Selected Payment mode: {paymentMode}</Text>
           <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentMode("CASH")}><Text>CASH</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentMode("UPI")}><Text>UPI</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentMode("UPI")}><Text>UPI</Text></TouchableOpacity> */}
         </View>
       </View>
 
